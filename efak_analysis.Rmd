@@ -1,0 +1,384 @@
+# Chulwalhar Efak Case Analysis
+---
+author: Marie Wallmark
+date: July 26, 2016
+output: 
+  html_document:
+    keep_md: True
+---
+
+## Import, clean and analyze the data
+In this case study we will be looking at two data sets. One with observed  export data, and the other of planned or desired export data. For his analysis, we will be looking at observed (As-Is) and planned data for the Efak flower to determine which model will best predict export.
+
+```{r include=FALSE}
+require(fpp)
+require(forecast)
+```
+```{r}
+ImportedPlanDataChulwalar <- read.csv("~/MSDS/case_study/data/ImportedPlanDataChulwalar.csv", header=F, sep=";",fill=T)
+View(ImportedPlanDataChulwalar)
+ImportedAsIsDataChulwalar <- read.csv("~/MSDS/case_study/data/ImportedAsIsDataChulwalar.csv", header=F, sep=";", fill=T)
+View(ImportedAsIsDataChulwalar)
+ImportedIndicators <- read.csv("~/MSDS/case_study/data/ImportedIndicators.csv", header=F, sep=";", fill=T)
+View(ImportedIndicators)
+```
+```{r}
+ImportedPlanData<-ImportedPlanDataChulwalar
+ImportedAsIsData<-ImportedAsIsDataChulwalar
+str(ImportedAsIsData)
+str(ImportedPlanData)
+str(ImportedIndicators)
+```
+```{r include=FALSE}
+### Transforming the data into vectors and time series
+TotalAsIsVector <- c(ImportedAsIsData [2:13,2],ImportedAsIsData [2:13,3],ImportedAsIsData [2:13,4],ImportedAsIsData [2:13,5],ImportedAsIsData [2:13,6],ImportedAsIsData [2:13,7])
+EfakAsIsVector <- c(ImportedAsIsData [16:27,2],ImportedAsIsData [16:27,3],ImportedAsIsData [16:27,4],ImportedAsIsData [16:27,5],ImportedAsIsData [16:27,6],ImportedAsIsData [16:27,7])
+YearAsIsVector <- c(ImportedAsIsData [86,2],ImportedAsIsData [86,3],ImportedAsIsData [86,4],ImportedAsIsData [86,5],ImportedAsIsData [86,6],ImportedAsIsData [86,7])
+TotalAsIsVector_2014 <- c(ImportedAsIsData[2:13,8])
+
+PlanVector <- c(ImportedPlanData[2:13,2],ImportedPlanData[2:13,3],ImportedPlanData[2:13,4],ImportedPlanData[2:13,5],ImportedPlanData[2:13,6],ImportedPlanData[2:13,7])
+EfakPlanVector <- c(ImportedPlanData[16:27,2],ImportedPlanData[16:27,3],ImportedPlanData[16:27,4],ImportedPlanData[16:27,5],ImportedPlanData[16:27,6],ImportedPlanData[16:27,7])
+YearPlanVector <- c(ImportedPlanData[86,2],ImportedPlanData[86,3],ImportedPlanData[86,4],ImportedPlanData[86,5],ImportedPlanData[86,6],ImportedPlanData[86,7])
+PlanVector_2014 <- c(ImportedPlanData[2:13,8])
+```
+```{r}
+### Vector is converted into a time series
+TotalAsIs<- ts(TotalAsIsVector , start=c(2008,1), end=c(2013,12), frequency=12)
+EfakAsIs <- ts(EfakAsIsVector , start=c(2008,1), end=c(2013,12), frequency=12)
+YearAsIs <- ts(YearAsIsVector, start=c(2008,1), end=c(2013,12), frequency=12)
+TotalAsIs_2014 <- ts(TotalAsIsVector_2014, start=c(2014,1), end=c(2014,12), frequency=12)
+
+TotalPlan <- ts(PlanVector , start=c(2008,1), end=c(2013,12), frequency=12)
+EfakPlan <- ts(EfakPlanVector, start=c(2008,1), end=c(2013,12), frequency=12)
+YearPlan <- ts(YearPlanVector, start=c(2008,1), end=c(2013,12), frequency=12)
+TotalPlan_2014 <- ts(PlanVector_2014, start=c(2014,1), end=c(2014,12), frequency=12)
+```
+```{r}
+### Call up time series
+str(TotalAsIs)
+str(EfakAsIs)
+str(YearAsIs)
+str(TotalAsIs_2014)
+
+str(TotalPlan)
+str(EfakPlan)
+str(YearPlan)
+str(TotalPlan_2014)
+```
+
+## Analysis of the data
+Test the linear relationship between As-Is and Plan data for the Efak flower by performing a correlation test.
+```{r}
+cor(TotalAsIs, TotalPlan )
+cor(EfakAsIs , EfakPlan)
+cor(YearAsIs, YearPlan)
+
+EfakAsIs_lm <- lm(EfakAsIs ~ EfakPlan , data = TotalAsIs)
+plot(EfakAsIs_lm)
+summary(EfakAsIs_lm)
+
+
+EfakAsIs_tslm <- tslm(EfakAsIs ~ EfakPlan )
+summary(EfakAsIs_tslm)
+```
+Pearson's r (.8199) indicates a strong relation between Efak As-Is and Efak plan.
+
+
+### Analysis of time series 
+We will use The Seasonal and Trend Decomposition using Loess function (stl) to divide the time series into three components (trend, seasonality and remainder). Plotting will help to determine how to model the time series.
+
+```{r}
+TotalAsIs_stl <- stl(TotalAsIs, s.window=5)
+EfakAsIs_stl <- stl(EfakAsIs , s.window=5)
+```
+
+
+```{r}
+par(mfrow=c(3,2))
+plot(TotalAsIs_stl, col="black", main="TotalAsIs_stl")
+plot(EfakAsIs_stl, col="black", main="EfakAsIs_stl")
+```
+
+
+```{r}
+par(mfrow=c(3,2))
+plot(TotalAsIs_stl$time.series[,"trend"], col="black")
+plot(EfakAsIs_stl$time.series[,"trend"], col="red")
+```
+
+### Modify seasonal component to a monthly base
+The modification of the seasonlity component can also be changed into a monthly view. It only makes sense to do this if the seasonality componant as the trend looks almost identical and the remainder is then randomly spread.
+
+```{r}
+monthplot(TotalAsIs_stl$time.series[,"seasonal"], main="", ylab="Seasonal")
+monthplot(EfakAsIs_stl$time.series[,"seasonal"], main="", ylab="Seasonal")
+```
+
+## We will consider correlation with external indicators
+
+The indicators are as follows:
+  
+* Monthly Change in Export Price Index (CEPI)
+* Monthly Satisfaction Index (SI) government based data
+* Average monthly temperatures in Chulwalar
+* Monthly births in Chulwalar
+* Monthly Satisfaction Index (SI) external index 
+* Yearly Exports from Urbano
+* Yearly number of Globalisation Party members in Chulwalar
+* Monthly Average Export Price Index for Chulwalar
+* Monthly Producer Price Index (PPI) for Etel in Chulwalar
+* National Holidays
+* Chulwalar Index (Total value of all companies in Chulwalar)
+* Monthly Inflation rate in Chulwalar
+*	Proposed spending for National Holidays
+* Influence of National Holiday
+
+We will convert the indicatorsinto individual  vectors and then into time series. We will then look at correlation between the As-Is data for the Efak flower and each individual indicator.
+This will alert us to other factors that might influence the accuracy of the prediction model.
+
+# Monthly Change in Export Price Index (CEPI)
+```{r}
+CEPIVector <- c(ImportedIndicators[2:13,2],ImportedIndicators[2:13,3],ImportedIndicators[2:13,4],ImportedIndicators[2:13,5],ImportedIndicators[2:13,6],ImportedIndicators[2:13,7])
+CEPI <- ts(CEPIVector , start=c(2008,1), end=c(2013,12), frequency=12)
+plot(CEPI, main="CEPI")
+
+cor(TotalAsIs, CEPI)
+cor(EfakAsIs , CEPI)
+```
+
+### Monthly Satisfaction Index (SI) government based data
+```{r}
+SIGovVector <- c(ImportedIndicators[16:27,2],ImportedIndicators[16:27,3],ImportedIndicators[16:27,4],ImportedIndicators[16:27,5],ImportedIndicators[16:27,6],ImportedIndicators[16:27,7])
+SIGov <- ts(SIGovVector , start=c(2008,1), end=c(2013,12), frequency=12)
+plot(SIGov, main="SIGov")
+
+cor(TotalAsIs, SIGov)
+cor(EfakAsIs , SIGov)
+```
+Satisfaction index does not appear to be correlated with Efak
+
+### Average monthly temperatures in Chulwalar
+```{r}
+TemperatureVector <- c(ImportedIndicators[30:41,2],ImportedIndicators[30:41,3],ImportedIndicators[30:41,4],ImportedIndicators[30:41,5],ImportedIndicators[30:41,6],ImportedIndicators[30:41,7])
+Temperature <- ts(TemperatureVector, start=c(2008,1), end=c(2013,12), frequency=12)
+plot(Temperature, main="Temperature")
+
+cor(TotalAsIs, Temperature)
+cor(EfakAsIs , Temperature)
+```
+negative correlaton with temperature, Efak exports increase in colder months
+
+### Monthly births in Chulwalar 
+```{r}
+BirthsVector <- c(ImportedIndicators[44:55,2],ImportedIndicators[44:55,3],ImportedIndicators[44:55,4],ImportedIndicators[44:55,5],ImportedIndicators[44:55,6],ImportedIndicators[44:55,7])
+Births <- ts(BirthsVector, start=c(2008,1), end=c(2013,12), frequency=12)
+plot(Births, main="Births")
+cor(TotalAsIs, Births)
+cor(EfakAsIs , Births)
+```
+weak correlation between births and Efak
+
+### Monthly Satisfaction Index (SI) external index 
+```{r}
+SIExternVector <- c(ImportedIndicators[58:69,2],ImportedIndicators[58:69,3],ImportedIndicators[58:69,4],ImportedIndicators[58:69,5],ImportedIndicators[58:69,6],ImportedIndicators[58:69,7])
+SIExtern <- ts(SIExternVector, start=c(2008,1), end=c(2013,12), frequency=12)
+plot(SIExtern, main="SIExtern")
+
+cor(TotalAsIs, SIExtern)
+cor(EfakAsIs , SIExtern)
+```
+strong correlation 
+
+### Yearly exports from Urbano
+```{r}
+UrbanoExportsVector <- c(ImportedIndicators[72:83,2],ImportedIndicators[72:83,3],ImportedIndicators[72:83,4],ImportedIndicators[72:83,5],ImportedIndicators[72:83,6],ImportedIndicators[72:83,7])
+UrbanoExports <- ts(UrbanoExportsVector, start=c(2008,1), end=c(2013,12), frequency=12)
+plot(UrbanoExports, main="UrbanoExports")
+
+cor(TotalAsIs, UrbanoExports)
+cor(EfakAsIs , UrbanoExports)
+
+```
+strong correlation 
+
+### Yearly number of Globalisation Party members in Chulwalar
+```{r}
+GlobalisationPartyMembersVector <- c(ImportedIndicators[86:97,2],ImportedIndicators[86:97,3],ImportedIndicators[86:97,4],ImportedIndicators[86:97,5],ImportedIndicators[86:97,6],ImportedIndicators[86:97,7])
+GlobalisationPartyMembers <- ts(GlobalisationPartyMembersVector, start=c(2008,1), end=c(2013,12), frequency=12)
+plot(GlobalisationPartyMembers, main="GlobalisationPartyMembers")
+
+cor(TotalAsIs, GlobalisationPartyMembers)
+cor(EfakAsIs , GlobalisationPartyMembers)
+```
+strong correlation 
+
+### Monthly Average Export Price Index for Chulwalar
+```{r}
+AEPIVector <- c(ImportedIndicators[100:111,2],ImportedIndicators[100:111,3],ImportedIndicators[100:111,4],ImportedIndicators[100:111,5],ImportedIndicators[100:111,6],ImportedIndicators[100:111,7])
+AEPI <- ts(AEPIVector, start=c(2008,1), end=c(2013,12), frequency=12)
+plot(AEPI, main="AEPI")
+
+cor(TotalAsIs, AEPI)
+cor(EfakAsIs , AEPI)
+```
+Strong correlation
+
+### Monthly Producer Price Index (PPI) for Etel in Chulwalar
+```{r}
+PPIEtelVector <- c(ImportedIndicators[114:125,2],ImportedIndicators[114:125,3],ImportedIndicators[114:125,4],ImportedIndicators[114:125,5],ImportedIndicators[114:125,6],ImportedIndicators[114:125,7])
+PPIEtel <- ts(PPIEtelVector, start=c(2008,1), end=c(2013,12), frequency=12)
+plot(PPIEtel, main="PPIEtel")
+
+cor(TotalAsIs, PPIEtel)
+cor(EfakAsIs , PPIEtel)
+```
+weak correlation
+
+### National Holidays
+```{r}
+NationalHolidaysVector <- c(ImportedIndicators[170:181,2],ImportedIndicators[170:181,3],ImportedIndicators[170:181,4],ImportedIndicators[170:181,5],ImportedIndicators[170:181,6],ImportedIndicators[170:181,7])
+NationalHolidays <- ts(NationalHolidaysVector, start=c(2008,1), end=c(2013,12), frequency=12)
+plot(NationalHolidays, main="NationalHolidays")
+
+cor(TotalAsIs, NationalHolidays)
+cor(EfakAsIs , NationalHolidays)
+```
+unexpected results, I expected a stronger correlation
+
+### Chulwalar Index (Total value of all companies in Chulwalar)
+
+```{r}
+ChulwalarIndexVector <- c(ImportedIndicators[128:139,2],ImportedIndicators[128:139,3],ImportedIndicators[128:139,4],ImportedIndicators[128:139,5],ImportedIndicators[128:139,6],ImportedIndicators[128:139,7])
+ChulwalarIndex <- ts(ChulwalarIndexVector, start=c(2008,1), end=c(2013,12), frequency=12)
+plot(ChulwalarIndex, main="ChulwalarIndex")
+
+cor(TotalAsIs, ChulwalarIndex)
+cor(EfakAsIs , ChulwalarIndex)
+```
+weak correlation
+
+### Monthly Inflation rate in Chulwalar 
+```{r}
+InflationVector <- c(ImportedIndicators[142:153,2],ImportedIndicators[142:153,3],ImportedIndicators[142:153,4],ImportedIndicators[142:153,5],ImportedIndicators[142:153,6],ImportedIndicators[142:153,7])
+Inflation <- ts(InflationVector, start=c(2008,1), end=c(2013,12), frequency=12)
+plot(Inflation, main="Inflation")
+
+cor(TotalAsIs, Inflation)
+cor(EfakAsIs , Inflation)
+```
+weak correlation
+### Proposed spending for Independence day presents
+```{r}
+IndependenceDayPresentsVector <- c(ImportedIndicators[156:167,2],ImportedIndicators[156:167,3],ImportedIndicators[156:167,4],ImportedIndicators[156:167,5],ImportedIndicators[156:167,6],ImportedIndicators[156:167,7])
+IndependenceDayPresents <- ts(IndependenceDayPresentsVector, start=c(2008,1), end=c(2013,12), frequency=12)
+plot(IndependenceDayPresents, main="IndependenceDayPresents")
+cor(TotalAsIs, IndependenceDayPresents)
+cor(EfakAsIs , IndependenceDayPresents)
+```
+
+
+# Check that the data import has worked
+```{r}
+str(CEPIVector)
+str(SIGovVector)  
+str(TemperatureVector) 
+str(BirthsVector)
+str(SIExternVector)
+str(UrbanoExportsVector) 
+str(GlobalisationPartyMembersVector)
+str(AEPIVector) 
+str(PPIEtelVector) 
+str(NationalHolidaysVector) 
+str(ChulwalarIndexVector)
+str(InflationVector) 
+str(IndependenceDayPresentsVector)
+```
+
+## Forecasting models with smoothing and related approaches
+
+The Akaike's Information Criterion(AIC/AICc) or the Bayesian Information Criterion (BIC) should be at minimum.
+
+## Simple expontential smoothing    
+```{r}
+Model_ses <- ses(EfakAsIs, h=12)
+summary(Model_ses)
+plot(Model_ses, plot.conf=FALSE, ylab="Exports Chulwalar  )", xlab="Year", main="", fcol="white", type="o")
+lines(fitted(Model_ses), col="green", type="o")
+lines(Model_ses$mean, col="blue", type="o")
+legend("topleft",lty=1, col=c(1,"green"), c("data", expression(alpha == 0.671)),pch=1)
+```
+
+## Holt's linear trend method   
+
+```{r}
+Model_holt_1 <- holt(EfakAsIs,h=12)
+summary(Model_holt_1)
+plot(Model_holt_1)
+
+# expoential trend
+Model_holt_2<- holt(EfakAsIs, exponential=TRUE,h=12)
+summary(Model_holt_2)
+plot(Model_holt_2)
+```
+
+## Dampened trends
+
+```{r}
+Model_holt_3 <- holt(EfakAsIs, damped=TRUE,h=12)
+summary(Model_holt_3)
+plot(Model_holt_3)
+
+Model_holt_4 <- holt(EfakAsIs, exponential=TRUE, damped=TRUE,h=12)
+summary(Model_holt_4)
+plot(Model_holt_4)
+
+# level and slope can be plotted individually for each model. 
+plot(Model_holt_1$model$state)
+plot(Model_holt_2$model$state)
+plot(Model_holt_3$model$state)
+plot(Model_holt_4$model$state)
+
+plot(Model_holt_1, plot.conf=FALSE, ylab="Efak Exports Chulwalar  )", xlab="Year", main="", fcol="white", type="o")
+lines(fitted(Model_ses), col="purple", type="o")
+lines(fitted(Model_holt_1), col="blue", type="o")
+lines(fitted(Model_holt_2), col="red", type="o")
+lines(fitted(Model_holt_3), col="green", type="o")
+lines(fitted(Model_holt_4), col="orange", type="o")
+lines(Model_ses$mean, col="purple", type="o")
+lines(Model_holt_1$mean, col="blue", type="o")
+lines(Model_holt_2$mean, col="red", type="o")
+lines(Model_holt_3$mean, col="green", type="o")
+lines(Model_holt_4$mean, col="orange", type="o")
+legend("topleft",lty=1, col=c(1,"purple","blue","red","green","orange"), c("data", "SES","Holts auto", "Exponential", "Additive Damped", "Multiplicative Damped"),pch=1)
+```
+
+## Holt-Winter's seasonal method   
+
+```{r}
+Model_hw_1 <- hw(EfakAsIs ,seasonal="additive",h=12)
+summary(Model_hw_1)
+plot(Model_hw_1)
+
+Model_hw_2 <- hw(EfakAsIs ,seasonal="multiplicative",h=12)
+summary(Model_hw_2)
+plot(Model_hw_2)
+
+plot(Model_hw_1, ylab="Efak Exports Chulwalar  ", plot.conf=FALSE, type="o", fcol="white", xlab="Year")
+lines(fitted(Model_hw_1), col="red", lty=2)
+lines(fitted(Model_hw_2), col="green", lty=2)
+lines(Model_hw_1$mean, type="o", col="red")
+lines(Model_hw_2$mean, type="o", col="green")
+legend("topleft",lty=1, pch=1, col=1:3, c("data","Holt Winters' Additive","Holt Winters' Multiplicative"))
+```
+
+
+## What is the best model for the export data? How do you define "best"?
+Plotting the data indicated a strong linear relationship. In this case a linear model is the best choice, though graphical representation from a residual vs fitted graph and a qqplot of data suggest that a log transform might be in order.
+### Which forecast model is the best? How do you define "best"?
+For this analysis, the Holt-Winter's Seasonal Additive Model (HW) provided the most accurate forecast with an AIC/AICs and BIC respectively of 1958.925, 1968.816 and 1995.352.
+
+### More than one model may be equally good. How do you choose among equally good models? 
+HW multiplicative model also provided an accurate forcast, but the accuracy measures were lower for the additive model.
+
+### Summarize results.
+In conclusion, considering the seasonal component of this data, it appears that the HW model is the most accurate for forecasting Efak exports for Chulwalhar.
